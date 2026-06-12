@@ -283,7 +283,7 @@ local StatusLabel = Make("TextLabel", {
 
 -- Player List
 local SelectionFrame = Make("Frame", {
-    Size = ud2(1,-24,0,220), Position = ud2(0,12,0,38),
+    Size = ud2(1,-24,0,200), Position = ud2(0,12,0,38),
     BackgroundColor3 = C.surface,
     BackgroundTransparency = 0.3,
     BorderSizePixel = 0, Parent = MainPage,
@@ -301,7 +301,7 @@ Make("UIListLayout", {SortOrder = Enum.SortOrder.LayoutOrder, Padding = ud(0,3),
 
 -- Buttons Frame
 local ButtonsFrame = Make("Frame", {
-    Size = ud2(1,-24,0,130), Position = ud2(0,12,0,268),
+    Size = ud2(1,-24,0,120), Position = ud2(0,12,0,244),
     BackgroundTransparency = 1, Parent = MainPage,
 })
 
@@ -322,30 +322,38 @@ local DeselectAllBtn = Make("TextButton", {
 })
 Make("UICorner", {CornerRadius = ud(0,8), Parent = DeselectAllBtn})
 
--- Auto Select Toggle
+-- Select Nearest / Auto Select 
+local SelectNearestBtn = Make("TextButton", {
+    Size = ud2(0.5,-3,0,30), Position = ud2(0,0,0,35),
+    BackgroundColor3 = C.surfaceAlt, BackgroundTransparency = 0.1,
+    Text = "SELECT NEAREST", TextColor3 = C.textPri,
+    Font = bold, TextSize = 11, Parent = ButtonsFrame,
+})
+Make("UICorner", {CornerRadius = ud(0,8), Parent = SelectNearestBtn})
+
 local AutoSelectFrame = Make("Frame", {
-    Size = ud2(1,0,0,30), Position = ud2(0,0,0,38),
+    Size = ud2(0.5,-3,0,30), Position = ud2(0.5,3,0,35),
     BackgroundColor3 = C.part_bg, BackgroundTransparency = 0.3,
     BorderSizePixel = 0, Parent = ButtonsFrame,
 })
 Make("UICorner", {CornerRadius = ud(0,8), Parent = AutoSelectFrame})
 
 Make("TextLabel", {
-    Size = ud2(0,120,1,0), Position = ud2(0,14,0,0),
-    BackgroundTransparency = 1, Text = "Auto Select New",
+    Size = ud2(1,-40,1,0), Position = ud2(0,10,0,0),
+    BackgroundTransparency = 1, Text = "Auto Select",
     TextColor3 = C.textPri, TextSize = 11, Font = reg,
     TextXAlignment = Enum.TextXAlignment.Left, Parent = AutoSelectFrame,
 })
 
 local AutoSelectToggle = Make("Frame", {
-    Size = ud2(0,36,0,18), Position = ud2(1,-46,0,6),
+    Size = ud2(0,30,0,16), Position = ud2(1,-36,0,7),
     BackgroundColor3 = C.toggle_off,
     BorderSizePixel = 0, Parent = AutoSelectFrame,
 })
 Make("UICorner", {CornerRadius = ud(1,0), Parent = AutoSelectToggle})
 
 local AutoSelectKnob = Make("Frame", {
-    Size = ud2(0,14,0,14), Position = ud2(0,2,0,2),
+    Size = ud2(0,12,0,12), Position = ud2(0,2,0,2),
     BackgroundColor3 = C.knob, BorderSizePixel = 0, Parent = AutoSelectToggle,
 })
 Make("UICorner", {CornerRadius = ud(1,0), Parent = AutoSelectKnob})
@@ -359,7 +367,7 @@ local AutoSelectHitbox = Make("TextButton", {
 
 -- Fling Buttons
 local FlingOnceBtn = Make("TextButton", {
-    Size = ud2(0.5,-3,0,36), Position = ud2(0,0,0,78),
+    Size = ud2(0.5,-3,0,36), Position = ud2(0,0,0,75),
     BackgroundColor3 = C.fling_once,
     BackgroundTransparency = 0.05,
     Text = "FLING ONCE", TextColor3 = C.white,
@@ -368,13 +376,14 @@ local FlingOnceBtn = Make("TextButton", {
 Make("UICorner", {CornerRadius = ud(0,10), Parent = FlingOnceBtn})
 
 local FlingBtn = Make("TextButton", {
-    Size = ud2(0.5,-3,0,36), Position = ud2(0.5,3,0,78),
+    Size = ud2(0.5,-3,0,36), Position = ud2(0.5,3,0,75),
     BackgroundColor3 = C.fling_btn,
     BackgroundTransparency = 0.05,
     Text = "FLING LOOP", TextColor3 = C.white,
     Font = bold, TextSize = 13, Parent = ButtonsFrame,
 })
 Make("UICorner", {CornerRadius = ud(0,10), Parent = FlingBtn})
+
 
 -- Settings Page
 Make("TextLabel", {
@@ -617,14 +626,37 @@ local function RefreshPlayerList()
                 ZIndex = 2, Parent = PlayerEntry,
             })
 
+            -- [[ DOUBLE TAP LOGIC IMPLEMENTED HERE ]]
+            local lastClickTime = 0
             ClickArea.MouseButton1Click:Connect(function()
-                if SelectedTargets[player.Name] then
-                    SelectedTargets[player.Name] = nil
-                    Checkmark.Visible = false
-                else
+                local currentTime = tick()
+                
+                -- Detect Double Tap (within 0.25 seconds)
+                if currentTime - lastClickTime < 0.25 then
+                    -- Deselect everyone else visually
+                    for _, cb in pairs(PlayerCheckboxes) do
+                        cb.Checkmark.Visible = false
+                    end
+                    -- Clear the table entirely
+                    for k in pairs(SelectedTargets) do SelectedTargets[k] = nil end
+                    
+                    -- Single out the clicked player
                     SelectedTargets[player.Name] = player
                     Checkmark.Visible = true
+                    
+                    lastClickTime = 0 -- Reset so a triple click doesn't trigger it again
+                else
+                    -- Standard Single Tap
+                    if SelectedTargets[player.Name] then
+                        SelectedTargets[player.Name] = nil
+                        Checkmark.Visible = false
+                    else
+                        SelectedTargets[player.Name] = player
+                        Checkmark.Visible = true
+                    end
+                    lastClickTime = currentTime
                 end
+                
                 UpdateStatus()
             end)
 
@@ -887,6 +919,44 @@ end
 SelectAllBtn.MouseButton1Click:Connect(function() ToggleAllPlayers(true) end)
 DeselectAllBtn.MouseButton1Click:Connect(function() ToggleAllPlayers(false) end)
 
+-- [[ SELECT NEAREST TARGET LOGIC HERE ]]
+SelectNearestBtn.MouseButton1Click:Connect(function()
+    local localChar = Players.LocalPlayer.Character
+    local localRoot = localChar and localChar:FindFirstChild("HumanoidRootPart")
+    if not localRoot then return end
+
+    local nearestPlayer = nil
+    local shortestDist = math.huge
+
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer and p.Character then
+            local root = p.Character:FindFirstChild("HumanoidRootPart")
+            if root then
+                local dist = (root.Position - localRoot.Position).Magnitude
+                if dist < shortestDist then
+                    shortestDist = dist
+                    nearestPlayer = p
+                end
+            end
+        end
+    end
+
+    if nearestPlayer then
+        -- Deselect everyone else
+        for name, cb in pairs(PlayerCheckboxes) do
+            cb.Checkmark.Visible = false
+        end
+        for k in pairs(SelectedTargets) do SelectedTargets[k] = nil end
+        
+        -- Select the nearest player
+        SelectedTargets[nearestPlayer.Name] = nearestPlayer
+        if PlayerCheckboxes[nearestPlayer.Name] then
+            PlayerCheckboxes[nearestPlayer.Name].Checkmark.Visible = true
+        end
+        UpdateStatus()
+    end
+end)
+
 FlingBtn.MouseButton1Click:Connect(function()
     if FlingMode == "loop" then
         StopFling()
@@ -906,7 +976,7 @@ end)
 AutoSelectHitbox.MouseButton1Click:Connect(function()
     autoSelectEnabled = not autoSelectEnabled
     TweenService:Create(AutoSelectKnob, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Position = autoSelectEnabled and ud2(0,20,0,2) or ud2(0,2,0,2)
+        Position = autoSelectEnabled and ud2(0,16,0,2) or ud2(0,2,0,2)
     }):Play()
     TweenService:Create(AutoSelectToggle, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         BackgroundColor3 = autoSelectEnabled and C.toggle_on or C.toggle_off
@@ -1029,7 +1099,7 @@ PillUI.InputEnded:Connect(function(input)
     end
 end)
 
--- Dragging (fixed - uses GuiInset for proper offset)
+-- Dragging 
 local dragging = false
 local dragOffset = Vector2.new()
 local insetOff = Vector2.new()
